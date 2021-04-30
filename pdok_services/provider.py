@@ -1,13 +1,13 @@
 from qgis.core import QgsProcessingProvider
-
-from .example_processing_algorithm import ExampleProcessingAlgorithm
 from .processing_geocoder import PDOKGeocoder
+from .processing_reverse_geocoder import PDOKReverseGeocoder
+from PyQt5 import QtGui
 
 
 class Provider(QgsProcessingProvider):
     def loadAlgorithms(self, *args, **kwargs):
-        self.addAlgorithm(ExampleProcessingAlgorithm())
         self.addAlgorithm(PDOKGeocoder())
+        self.addAlgorithm(PDOKReverseGeocoder())
 
     def id(self, *args, **kwargs):
         """The ID of your plugin, used for identifying the provider.
@@ -23,10 +23,12 @@ class Provider(QgsProcessingProvider):
         This string should be as short as possible (e.g. "Lastools", not
         "Lastools version 1.0.1 64-bit") and localised.
         """
-        return self.tr("Your plugin")
+        return self.tr("PDOK Services Plugin")
 
     def icon(self):
         """Should return a QIcon which is used for your provider inside
         the Processing toolbox.
         """
-        return QgsProcessingProvider.icon(self)
+        icon_path = ":/plugins/pdok_services/icon.png"
+        icon = QtGui.QIcon(icon_path)
+        return icon

@@ -4,35 +4,6 @@
 Locatieserver. Tested with QGIS version 3.16, but will probably work with any \
 3.X version."""
 
-# MIT License
-
-# Copyright (c) 2021 Anton Bakker
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-
-__author__ = "Anton Bakker"
-__copyright__ = "Copyright 2021, Anton Bakker"
-__license__ = "MIT"
-__version__ = "1.0.0"
-__maintainer__ = "Anton Bakker"
-__email__ = "anton.bakker@kadaster.nl"
-__date__ = "2021-02-05"
 import sys, traceback
 from qgis.PyQt.QtCore import QCoreApplication, QVariant
 from qgis.core import (
@@ -59,6 +30,7 @@ from qgis.core import (
     QgsProcessingParameterFeatureSink,
     QgsProcessingParameterField,
 )
+from PyQt5 import QtGui
 from qgis import processing
 import json
 import re
@@ -101,20 +73,28 @@ class PDOKGeocoder(QgsProcessingAlgorithm):
         """
         Returns the translated algorithm name.
         """
-        return self.tr("PDOK Geocoder")
+        return self.tr("Geocoder")
 
     def group(self):
         """
         Returns the name of the group this algorithm belongs to.
         """
-        return self.tr("PDOK Tools")
+        return self.tr("Locatie Server")
 
     def groupId(self):
         """
         Returns the unique ID of the group this algorithm belongs
         to.
         """
-        return "pdok-tools"
+        return "pdok-locatie-server"
+
+    def icon(self):
+        """Should return a QIcon which is used for your provider inside
+        the Processing toolbox.
+        """
+        icon_path = ":/plugins/pdok_services/icon.png"
+        icon = QtGui.QIcon(icon_path)
+        return icon
 
     def shortHelpString(self):
         """
