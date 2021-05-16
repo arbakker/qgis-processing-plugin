@@ -5,6 +5,7 @@ from qgis.core import QgsMessageLog, QgsBlockingNetworkRequest, Qgis
 from qgis.PyQt.QtNetwork import QNetworkReply, QNetworkRequest
 from qgis.PyQt.QtCore import QUrl
 import urllib.parse
+from osgeo import ogr
 
 SERVICE_ENDPOINT = "https://geodata.nationaalgeoregister.nl/locatieserver/v3"
 PLUGIN_NAME = "pdokservices-plugin"
@@ -84,12 +85,22 @@ def suggest_query(query, type_fq=TypeFilterQuery(), rows=10) -> list:
     return content_obj["response"]["docs"]
 
 
-def free_query(query, rows=10) -> list:
+def convert_to_gj(result_item):
+    wkt = result_item["centroide_ll"]
+    geom = ogr.CreateGeometryFromWkt(wkt)
+    geojson = geom.ExportToJson()
+    print(geojson)
+
+
+def free_query(query, rows=10) -> "list[dict]":
     query = url_encode_query_string(query)
     query_string = f"q={query}&rows={rows}"
     url = f"{SERVICE_ENDPOINT}/free?{query_string}"
     content_obj = get_request(url)
-    return content_obj["response"]["docs"]
+    result = content_obj["response"]["docs"]
+
+    map(convert_to_gj, result)
+    return result
 
 
 def lookup_object(object_id: str, proj: Projection) -> dict:

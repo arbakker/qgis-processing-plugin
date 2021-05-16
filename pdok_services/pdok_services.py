@@ -27,11 +27,15 @@ from qgis.PyQt.QtWidgets import QAction
 from qgis.core import QgsApplication
 
 # Initialize Qt resources from file resources.py
-from .resources import *
+
+# import sys
+# import os
+# sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 
 # Import the code for the dialog
+from .resources import *
 from .pdok_services_dialog import PdokServicesDialog
-from .provider import Provider
+from .processing_provider.provider import Provider
 import os.path
 
 

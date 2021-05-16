@@ -22,7 +22,9 @@
  ***************************************************************************/
  This script initializes the plugin, making it known to QGIS.
 """
+import os, sys
 
+sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 
 # noinspection PyPep8Naming
 def classFactory(iface):  # pylint: disable=invalid-name
@@ -32,5 +34,6 @@ def classFactory(iface):  # pylint: disable=invalid-name
     :type iface: QgsInterface
     """
     #
-    from .pdok_services import PdokServices
+    from pdok_services.pdok_services import PdokServices
+
     return PdokServices(iface)

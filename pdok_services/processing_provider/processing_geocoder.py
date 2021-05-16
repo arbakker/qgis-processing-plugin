@@ -34,7 +34,18 @@ from PyQt5 import QtGui
 from qgis import processing
 import json
 import re
-from .locatieserver import LocatieServer, TypeFilterQuery, Projection
+import sys
+import os
+
+
+# sys.path.append(os.path.dirname(os.path.realpath(os.path.join("..", __file__))))
+
+from ..locatieserver.locatieserver import (
+    TypeFilterQuery,
+    Projection,
+    lookup_object,
+    free_query,
+)
 
 
 class PDOKGeocoder(QgsProcessingAlgorithm):
@@ -223,19 +234,14 @@ class PDOKGeocoder(QgsProcessingAlgorithm):
             return QgsGeometry.fromWkt(wkt_point)
         else:
             ls_id = wkt_point = data[0]["id"]
-            ls = LocatieServer()
-            data = ls.lookup_object(ls_id, Projection.EPSG_4326)
-
+            data = lookup_object(ls_id, Projection.EPSG_4326)
             # TODO: handle errors
             # if response.status_code != 200:
             #     raise QgsProcessingException(
             #         f"Unexpected response from HTTP GET {url}, response code: {response.status_code}"
             #     )
-            data = response.json()
             if data is None:
-                raise QgsProcessingException(
-                    f"Unexpected response body from HTTP GET {url}"
-                )
+                raise QgsProcessingException(f"Failed to lookup object with id {ls_id}")
             wkt_geom = data["geometrie_ll"]
             return QgsGeometry.fromWkt(wkt_geom)
 
@@ -286,16 +292,12 @@ class PDOKGeocoder(QgsProcessingAlgorithm):
                 if src_field_val is None:
                     continue
 
-                ls = LocatieServer()
-
                 # TODO: error handling from LS lib
                 # maybe raise error:
                 # raise QgsProcessingException(
                 #     f"Unexpected response from HTTP GET {url}, response code: {response.status_code}"
                 # )
-
-                ls_type_filter = [TypeFilterQuery.LsType[result_type]]
-                data = ls.free_query(src_field_val, TypeFilterQuery(ls_type_filter))
+                data = free_query(src_field_val)
 
                 # query postcode
                 # match = re.search("([0-9]{4}[A-Za-z]{2})\s(.*)", query)

@@ -15,7 +15,7 @@ class Provider(QgsProcessingProvider):
         This string should be a unique, short, character only string,
         eg "qgis" or "gdal". This string should not be localised.
         """
-        return "yourplugin"
+        return "pdokservices"
 
     def name(self, *args, **kwargs):
         """The human friendly name of your plugin in Processing.

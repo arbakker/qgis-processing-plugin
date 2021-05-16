@@ -2,23 +2,24 @@
 """Tests PDOK Locatie Server client"""
 
 import os
+import sys
 import unittest
 import logging
 import urllib.parse
 from unittest.mock import Mock, patch
 
 LOGGER = logging.getLogger("QGIS")
-from locatieserver import (
+
+
+from pdok_services.locatieserver.locatieserver import (
     TypeFilterQuery,
     Projection,
     suggest_query,
     lookup_object,
     free_query,
 )
-from qgis.PyQt.QtNetwork import QNetworkReply, QNetworkRequest
-from qgis.PyQt.QtCore import QUrl
+from qgis.PyQt.QtNetwork import QNetworkReply
 
-from qgis.core import QgsMessageLog, QgsBlockingNetworkRequest, Qgis
 from unittest.mock import patch
 
 BASE_PATH = os.path.dirname(__file__)
@@ -70,14 +71,14 @@ class PdokLocatieServerClientTest(unittest.TestCase):
         )
         self.assertEqual(expected_query, query)
 
-    @patch("locatieserver.QgsBlockingNetworkRequest")
+    @patch("pdok_services.locatieserver.locatieserver.QgsBlockingNetworkRequest")
     def test_return_type_suggest_query(self, mock_request):
         mock_request = self.setup_mock_request(mock_request, "suggest")
         result_suggest = suggest_query("Amsterdam")
         self.assertTrue(isinstance(result_suggest, list))
         self.assertTrue(all(isinstance(x, dict) for x in result_suggest))
 
-    @patch("locatieserver.QgsBlockingNetworkRequest")
+    @patch("pdok_services.locatieserver.locatieserver.QgsBlockingNetworkRequest")
     def test_return_type_lookup(self, mock_request):
         mock_request = self.setup_mock_request(mock_request, "lookup")
         result_lookup = lookup_object(
@@ -85,13 +86,13 @@ class PdokLocatieServerClientTest(unittest.TestCase):
         )
         self.assertTrue(isinstance(result_lookup, dict))
 
-    @patch("locatieserver.QgsBlockingNetworkRequest")
+    @patch("pdok_services.locatieserver.locatieserver.QgsBlockingNetworkRequest")
     def test_non_existing_lookup(self, mock_request):
         mock_request = self.setup_mock_request(mock_request, "empty")
         result_lookup = lookup_object("wpl-doesnotexist", Projection.EPSG_4326)
         self.assertIsNone(result_lookup)
 
-    @patch("locatieserver.QgsBlockingNetworkRequest")
+    @patch("pdok_services.locatieserver.locatieserver.QgsBlockingNetworkRequest")
     def test_return_type_free_query(self, mock_request):
         mock_request = self.setup_mock_request(mock_request, "free")
         result_free = free_query(
@@ -100,7 +101,7 @@ class PdokLocatieServerClientTest(unittest.TestCase):
         self.assertTrue(isinstance(result_free, list))
         self.assertTrue(all(isinstance(x, dict) for x in result_free))
 
-    @patch("locatieserver.QgsBlockingNetworkRequest")
+    @patch("pdok_services.locatieserver.locatieserver.QgsBlockingNetworkRequest")
     def test_default_nr_results(self, mock_request):
         mock_request = self.setup_mock_request(mock_request, "free")
         get_calls = mock_request.return_value.get.call_args_list
@@ -108,7 +109,7 @@ class PdokLocatieServerClientTest(unittest.TestCase):
         requested_url = get_calls[0][0][0].url().url()
         self.assertIn("&rows=10", requested_url)
 
-    @patch("locatieserver.QgsBlockingNetworkRequest")
+    @patch("pdok_services.locatieserver.locatieserver.QgsBlockingNetworkRequest")
     def test_nr_results(self, mock_request):
         mock_request = self.setup_mock_request(mock_request, "free")
         get_calls = mock_request.return_value.get.call_args_list
