@@ -8,9 +8,9 @@
 
 """
 
-__author__ = 'anton.bakker@kadaster.nl'
-__date__ = '2021-04-30'
-__copyright__ = 'Copyright 2021, osgeonl'
+__author__ = "anton.bakker@kadaster.nl"
+__date__ = "2021-04-30"
+__copyright__ = "Copyright 2021, osgeonl"
 
 import unittest
 
@@ -19,10 +19,11 @@ from qgis.PyQt.QtGui import QDialogButtonBox, QDialog
 from pdok_services_dialog import PdokServicesDialog
 
 from utilities import get_qgis_app
+
 QGIS_APP = get_qgis_app()
 
 
-class PdokServicesDialogTest(unittest.TestCase):
+class TestPdokServicesDialog(unittest.TestCase):
     """Test dialog works."""
 
     def setUp(self):
@@ -48,8 +49,8 @@ class PdokServicesDialogTest(unittest.TestCase):
         result = self.dialog.result()
         self.assertEqual(result, QDialog.Rejected)
 
+
 if __name__ == "__main__":
-    suite = unittest.makeSuite(PdokServicesDialogTest)
+    suite = unittest.makeSuite(TestPdokServicesDialog)
     runner = unittest.TextTestRunner(verbosity=2)
     runner.run(suite)
-

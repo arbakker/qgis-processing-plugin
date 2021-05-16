@@ -282,7 +282,9 @@ class PDOKGeocoder(QgsProcessingAlgorithm):
             for feature in input_layer.getFeatures():
 
                 # TODO: check if src_field value is None if so skip feature
-                query = feature.attribute(src_field)
+                src_field_val = feature.attribute(src_field)
+                if src_field_val is None:
+                    continue
 
                 ls = LocatieServer()
 
@@ -291,7 +293,9 @@ class PDOKGeocoder(QgsProcessingAlgorithm):
                 # raise QgsProcessingException(
                 #     f"Unexpected response from HTTP GET {url}, response code: {response.status_code}"
                 # )
-                data = ls.free_query(query, TypeFilterQuery(result_type))
+
+                ls_type_filter = [TypeFilterQuery.LsType[result_type]]
+                data = ls.free_query(src_field_val, TypeFilterQuery(ls_type_filter))
 
                 # query postcode
                 # match = re.search("([0-9]{4}[A-Za-z]{2})\s(.*)", query)

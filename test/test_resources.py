@@ -8,17 +8,16 @@
 
 """
 
-__author__ = 'anton.bakker@kadaster.nl'
-__date__ = '2021-04-30'
-__copyright__ = 'Copyright 2021, osgeonl'
+__author__ = "anton.bakker@kadaster.nl"
+__date__ = "2021-04-30"
+__copyright__ = "Copyright 2021, osgeonl"
 
 import unittest
 
 from qgis.PyQt.QtGui import QIcon
 
 
-
-class PdokServicesDialogTest(unittest.TestCase):
+class PdokServicesResourcesTest(unittest.TestCase):
     """Test rerources work."""
 
     def setUp(self):
@@ -31,14 +30,12 @@ class PdokServicesDialogTest(unittest.TestCase):
 
     def test_icon_png(self):
         """Test we can click OK."""
-        path = ':/plugins/PdokServices/icon.png'
+        path = ":/plugins/PdokServices/icon.png"
         icon = QIcon(path)
         self.assertFalse(icon.isNull())
+
 
 if __name__ == "__main__":
     suite = unittest.makeSuite(PdokServicesResourcesTest)
     runner = unittest.TextTestRunner(verbosity=2)
     runner.run(suite)
-
-
-
