@@ -1,6 +1,8 @@
 from qgis.core import QgsProcessingProvider
 from .processing_geocoder import PDOKGeocoder
 from .processing_reverse_geocoder import PDOKReverseGeocoder
+from .processing_ahn3 import PDOKWCSTool
+
 from PyQt5 import QtGui
 
 
@@ -8,6 +10,7 @@ class Provider(QgsProcessingProvider):
     def loadAlgorithms(self, *args, **kwargs):
         self.addAlgorithm(PDOKGeocoder())
         self.addAlgorithm(PDOKReverseGeocoder())
+        self.addAlgorithm(PDOKWCSTool())
 
     def id(self, *args, **kwargs):
         """The ID of your plugin, used for identifying the provider.

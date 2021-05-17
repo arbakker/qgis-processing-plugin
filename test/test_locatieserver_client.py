@@ -1,18 +1,22 @@
 # coding=utf-8
 """Tests PDOK Locatie Server client"""
-
 import os
-import sys
 import unittest
 import logging
 import urllib.parse
-from unittest.mock import Mock, patch
+from unittest.mock import patch
+from PyQt5.QtCore import QByteArray
+
+from qgis.core import (
+    QgsWkbTypes,
+)
 
 LOGGER = logging.getLogger("QGIS")
 
 
-from pdok_services.locatieserver.locatieserver import (
-    TypeFilterQuery,
+from pdok_services.locatieserver import (
+    LsType,
+    TypeFilter,
     Projection,
     suggest_query,
     lookup_object,
@@ -36,6 +40,11 @@ class MockReply:
     def content(self):
         return self._content
 
+    def rawHeader(self, value):
+        if value == b"Content-Type":
+            return b"application/json;charset=utf-8"
+        return QByteArray()
+
 
 class PdokLocatieServerClientTest(unittest.TestCase):
     def setup_mock_request(self, mock_request, result_type):
@@ -49,6 +58,11 @@ class PdokLocatieServerClientTest(unittest.TestCase):
             QNetworkReply.NoError,
         )
         return mock_request
+
+    def test_ls_type_geom_mapping(self):
+        gemeente_type = LsType.gemeente
+        geom_type = gemeente_type.geom_type()
+        self.assertEqual(geom_type, QgsWkbTypes.MultiPolygon)
 
     def test_projection_available(self):
         proj_strings = []
@@ -64,21 +78,21 @@ class PdokLocatieServerClientTest(unittest.TestCase):
         self.assertEqual(expected_proj_str, proj_str)
 
     def test_type_filter_query_all_types(self):
-        tf_query = TypeFilterQuery()
+        tf_query = TypeFilter()
         query = str(tf_query)
         expected_query = urllib.parse.quote(
-            "type:(provincie OR gemeente OR woonplaats OR weg OR postcode OR adres OR perceel OR hectometerpaal OR wijk OR buurt OR waterschapsgrens OR appartementsrecht)"
+            "type:(adres OR appartementsrecht OR buurt OR gemeente OR hectometerpaal OR perceel OR postcode OR provincie OR weg OR wijk OR waterschap OR woonplaats)"
         )
         self.assertEqual(expected_query, query)
 
-    @patch("pdok_services.locatieserver.locatieserver.QgsBlockingNetworkRequest")
+    @patch("pdok_services.http_client.QgsBlockingNetworkRequest")
     def test_return_type_suggest_query(self, mock_request):
         mock_request = self.setup_mock_request(mock_request, "suggest")
         result_suggest = suggest_query("Amsterdam")
         self.assertTrue(isinstance(result_suggest, list))
         self.assertTrue(all(isinstance(x, dict) for x in result_suggest))
 
-    @patch("pdok_services.locatieserver.locatieserver.QgsBlockingNetworkRequest")
+    @patch("pdok_services.http_client.QgsBlockingNetworkRequest")
     def test_return_type_lookup(self, mock_request):
         mock_request = self.setup_mock_request(mock_request, "lookup")
         result_lookup = lookup_object(
@@ -86,13 +100,13 @@ class PdokLocatieServerClientTest(unittest.TestCase):
         )
         self.assertTrue(isinstance(result_lookup, dict))
 
-    @patch("pdok_services.locatieserver.locatieserver.QgsBlockingNetworkRequest")
+    @patch("pdok_services.http_client.QgsBlockingNetworkRequest")
     def test_non_existing_lookup(self, mock_request):
         mock_request = self.setup_mock_request(mock_request, "empty")
         result_lookup = lookup_object("wpl-doesnotexist", Projection.EPSG_4326)
         self.assertIsNone(result_lookup)
 
-    @patch("pdok_services.locatieserver.locatieserver.QgsBlockingNetworkRequest")
+    @patch("pdok_services.http_client.QgsBlockingNetworkRequest")
     def test_return_type_free_query(self, mock_request):
         mock_request = self.setup_mock_request(mock_request, "free")
         result_free = free_query(
@@ -101,19 +115,19 @@ class PdokLocatieServerClientTest(unittest.TestCase):
         self.assertTrue(isinstance(result_free, list))
         self.assertTrue(all(isinstance(x, dict) for x in result_free))
 
-    @patch("pdok_services.locatieserver.locatieserver.QgsBlockingNetworkRequest")
+    @patch("pdok_services.http_client.QgsBlockingNetworkRequest")
     def test_default_nr_results(self, mock_request):
         mock_request = self.setup_mock_request(mock_request, "free")
         get_calls = mock_request.return_value.get.call_args_list
-        free_query("Varkensstraat 44-1, 6811GN Arnhem")
+        free_query("Varkensstraat 44-1, 6811GN Arnhem", Projection.EPSG_4326)
         requested_url = get_calls[0][0][0].url().url()
         self.assertIn("&rows=10", requested_url)
 
-    @patch("pdok_services.locatieserver.locatieserver.QgsBlockingNetworkRequest")
+    @patch("pdok_services.http_client.QgsBlockingNetworkRequest")
     def test_nr_results(self, mock_request):
         mock_request = self.setup_mock_request(mock_request, "free")
         get_calls = mock_request.return_value.get.call_args_list
-        free_query("Varkensstraat 44-1, 6811GN Arnhem", 20)
+        free_query("Varkensstraat 44-1, 6811GN Arnhem", Projection.EPSG_28992, rows=20)
         requested_url = get_calls[0][0][0].url().url()
         self.assertIn("&rows=20", requested_url)
 

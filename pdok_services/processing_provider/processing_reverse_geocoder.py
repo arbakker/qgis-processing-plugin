@@ -29,8 +29,15 @@ from qgis.core import (
 from PyQt5 import QtGui
 
 from qgis import processing
-import requests
-import json
+
+from pdok_services.locatieserver import (
+    LsType,
+    reverse_lookup,
+    TypeFilter,
+    Projection,
+    lookup_object,
+    free_query,
+)
 
 
 class PDOKReverseGeocoder(QgsProcessingAlgorithm):
@@ -38,8 +45,6 @@ class PDOKReverseGeocoder(QgsProcessingAlgorithm):
     This processing tool queries the PDOK Locatieserver reverse geocoder service for each point in the input
     layer and adds the first result to the target attribute.
     """
-
-    USER_AGENT_HEADER = {"User-Agent": "qgis-pdok-processing-tools"}
 
     def tr(self, string):
         """
@@ -61,7 +66,7 @@ class PDOKReverseGeocoder(QgsProcessingAlgorithm):
         """
         Returns the translated tool name.
         """
-        return self.tr("Reverse Geocoder")
+        return self.tr("PDOK Reverse Geocoder")
 
     def group(self):
         """
@@ -89,15 +94,20 @@ class PDOKReverseGeocoder(QgsProcessingAlgorithm):
         Returns a localised short help string for the tool.
         """
         return self.tr(
-            'This processing tool queries the PDOK Locatieserver reverse geocoder service for each\
-            point in the input layer and adds the first result to the target attribute.\n\
-            See PDOK Locatieserver documentation: https://github.com/PDOK/locatieserver/wiki/API-Reverse-Geocoder\n\
+            'This processing tool queries the PDOK Locatieserver (PDOK-LS) reverse geocoder service for each\
+            point in the input layer and adds the selected fields of the reverse geocoder result to the point.\n\n\
+            See also the PDOK Locatieserver reverse geocoding API <a href="https://github.com/PDOK/locatieserver/wiki/API-Reverse-Geocoder">documentation</a> \n\
             Parameters:\n\n\
-            - Input point layer (any projection): for each point the PDOK locatieserver reverse geocoder service will be queried\n\
-            - Result type to query: defaults to "adres"\n\
-            - Distance treshold, optional: objects returned by the PDOK locatieserver reverse geocoder \
-            with a distance greater than the threshold will be excluded\n\
-            - Attribute name, optional: defaults to result type, target attribute name results will be written to'
+            <ul><li><b>Input point layer:</b> for each point the PDOK-LS reverse geocoder service will be queried</li>\
+            <li><b>Fields:</b> fields to add to input point layer from reverse geocoder response, defaults to "weergavenaam" \
+            (note that in the resulting output weergavenaam is remapped to "weergavenaam_{result_type}")</li>\
+            <li><b>Result type to query</b></li>\
+            <li><b>Score treshold, optional:</b> objects returned by the PDOK-LS geocoder each have a score, \
+            to indicate how well they match the query. Results with a score lower than the treshold \
+            are excluded</li>\
+            <li><b>Output point layer:</b> output layer with fields added from the PDOK-LS reverse geocoder \
+            response, projection same as input point layer</li></ul>\
+            '
         )
 
     def initAlgorithm(self, config=None):
@@ -106,21 +116,10 @@ class PDOKReverseGeocoder(QgsProcessingAlgorithm):
         """
 
         self.predicates = [
-            ("adres", self.tr("adres")),
-            ("appartementsrecht", self.tr("appartementsrecht")),
-            ("buurt", self.tr("buurt")),
-            ("gemeente", self.tr("gemeente")),
-            ("hectometerpaal", self.tr("hectometerpaal")),
-            ("perceel", self.tr("perceel")),
-            ("postcode", self.tr("postcode")),
-            ("provincie", self.tr("provincie")),
-            ("waterschap", self.tr("waterschap")),
-            ("weg", self.tr("weg")),
-            ("wijk", self.tr("wijk")),
-            ("woonplaats", self.tr("woonplaats")),
+            (ls_type.value, self.tr(ls_type.value)) for ls_type in LsType
         ]
         self.INPUT = "INPUT"  # recommended name for the main input parameter
-        self.ATTRIBUTE_NAME = "ATTRIBUTE_NAME"
+        self.FIELDS = "FIELDS"
         self.RESULT_TYPE = "RESULT_TYPE"
         self.DISTANCE_TRESHOLD = "DISTANCE_TRESHOLD"
         self.OUTPUT = "OUTPUT"  # recommended name for the main output parameter
@@ -133,73 +132,81 @@ class PDOKReverseGeocoder(QgsProcessingAlgorithm):
             )
         )
         self.addParameter(
+            QgsProcessingParameterFeatureSink(
+                self.OUTPUT, self.tr("Output point layer")
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterString(
+                self.FIELDS,
+                self.tr("Fields (comma seperated list)"),
+                defaultValue="weergavenaam",
+                optional=False,
+            )
+        )
+        self.addParameter(
             QgsProcessingParameterEnum(
                 self.RESULT_TYPE,
                 self.tr("Result type to query"),
                 options=[p[1] for p in self.predicates],
                 defaultValue=0,
-                optional=True,
+                optional=False,
             )
         )
         dist_param = QgsProcessingParameterDistance(
             self.DISTANCE_TRESHOLD,
-            self.tr("Distance treshold"),
+            self.tr("Score treshold"),
             defaultValue=None,
             optional=True,
             minValue=0,
         )
         dist_param.setDefaultUnit(QgsUnitTypes.DistanceMeters)
         self.addParameter(dist_param)
-        self.addParameter(
-            QgsProcessingParameterString(
-                self.ATTRIBUTE_NAME,
-                self.tr("Attribute name"),
-                defaultValue=None,
-                optional=True,
-            )
-        )
-        self.addParameter(
-            QgsProcessingParameterFeatureSink(
-                self.OUTPUT, self.tr("Output point layer")
-            )
-        )
 
     def processAlgorithm(self, parameters, context, feedback):
         try:
             # read out algorithm parameters
             input_points = self.parameterAsVectorLayer(parameters, self.INPUT, context)
             distance_treshold = parameters[self.DISTANCE_TRESHOLD]
-            target_att_name = parameters[self.ATTRIBUTE_NAME]
-            result_type = [
+            result_type_str = [
                 self.predicates[i][0]
                 for i in self.parameterAsEnums(parameters, self.RESULT_TYPE, context)
             ][0]
+            result_type = LsType[result_type_str]
+            input_fields = [x.strip() for x in parameters[self.FIELDS].split(",")]
+            input_layer_fields = input_points.fields()
+            input_layer_fields_names = [field.name() for field in input_layer_fields]
+            field_mapping = {}
 
-            # Initialize output layer
-            fields = input_points.fields()
-            field_names = [field.name() for field in fields]
-            if not target_att_name:
-                target_att_name = result_type
-            if target_att_name in fields:
-                raise QgsProcessingException(
-                    f"Target attribute name {field_name} already exists in input layer. \
-                    Supply  different target attribute name."
+            for input_field in input_fields:
+                mapped_field_name = input_field
+                if input_field == "weergavenaam":
+                    mapped_field_name = f"weergavenaam_{result_type.value}"
+                # TODO: improve field mapping, since no check if ls_{input_field} exists
+                # in input_layer_fields_names
+                if mapped_field_name in input_layer_fields_names:
+                    mapped_field_name = f"ls_{input_field}"
+                field_mapping[input_field] = mapped_field_name
+
+            for input_field in input_fields:
+                input_layer_fields.append(
+                    QgsField(field_mapping[input_field], QVariant.String)
                 )
-            fields.append(QgsField(target_att_name, QVariant.String))
+
             (sink, dest_id) = self.parameterAsSink(
                 parameters,
                 self.OUTPUT,
                 context,
-                fields,
+                input_layer_fields,
                 QgsWkbTypes.Point,
                 input_points.sourceCrs(),
             )
 
             # Setup transformation if required
             in_crs = input_points.crs()
-            out_crs = QgsCoordinateReferenceSystem.fromEpsgId(4326)
+            out_crs = QgsCoordinateReferenceSystem.fromEpsgId(28992)
             transform = None
-            if in_crs.authid() != "EPSG:4326":
+            if in_crs.authid() != "EPSG:28992":
                 transform = QgsCoordinateTransform(
                     in_crs, out_crs, QgsProject.instance()
                 )
@@ -210,47 +217,57 @@ class PDOKReverseGeocoder(QgsProcessingAlgorithm):
             # start processing features
             for point in input_points.getFeatures():
                 geom = point.geometry()
-
+                fid = point.id()
                 if transform:
                     geom.transform(transform)
 
                 point_geom = QgsGeometry.asPoint(geom)
                 pxy = QgsPointXY(point_geom)
-                lon = pxy.x()
-                lat = pxy.y()
-                url = f"https://geodata.nationaalgeoregister.nl/locatieserver/v4/revgeo/?lon={lon}&type={result_type}&lat={lat}"
-                feedback.pushInfo(f"INFO: HTTP GET {url}")
-                response = requests.get(
-                    url, headers=PDOKReverseGeocoder.USER_AGENT_HEADER
-                )
-                sc = response.status_code
+                x = pxy.x()
+                y = pxy.y()
 
-                if response.status_code != 200:
-                    raise QgsProcessingException(
-                        f"Unexpected response from HTTP GET {url}, response code: {response.status_code}"
-                    )
+                # afstand field required, add if not requested by user
+                if "afstand" not in input_fields:
+                    input_fields.append("afstand")
+                data = reverse_lookup(x, y, input_fields, TypeFilter([result_type]))
+                # TODO: add exception handling reverse_lookup
 
-                data = response.json()
-                result = ""
-
-                if len(data["response"]["docs"]) > 0:
+                result = None
+                if len(data) > 0:
                     if (
                         distance_treshold != None
-                        and data["response"]["docs"][0]["afstand"] > distance_treshold
+                        and data[0]["afstand"] > distance_treshold
                     ):
+                        distance = data[0]["afstand"]
+                        feedback.pushInfo(
+                            f"feature id: {fid} - distance treshold ({distance_treshold}) exceeded: {distance}"
+                        )
                         pass
                     else:
-                        result = data["response"]["docs"][0]["weergavenaam"]
+                        result = {}
+                        for key in field_mapping:
+                            if key in data[0]:
+                                result[key] = data[0][key]
+                            else:
+                                feedback.pushInfo(
+                                    f'feature id: {fid} - field "{key}" not in response'
+                                )
+                else:
+                    feedback.pushInfo(
+                        f"feature id: {fid} - no objects found for x,y ({x},{y}) with result_type: {result_type.value}"
+                    )
 
                 attrs = point.attributes()
-                new_ft = QgsFeature(fields)
+                new_ft = QgsFeature(input_layer_fields)
 
                 for i in range(len(attrs)):
                     attr = attrs[i]
-                    field_name = field_names[i]
+                    field_name = input_layer_fields_names[i]
                     new_ft.setAttribute(field_name, attr)
 
-                new_ft.setAttribute(target_att_name, result)
+                for key in result:
+                    new_ft.setAttribute(field_mapping[key], result[key])
+
                 new_ft.setGeometry(point.geometry())
                 sink.addFeature(new_ft, QgsFeatureSink.FastInsert)
 
@@ -261,6 +278,7 @@ class PDOKReverseGeocoder(QgsProcessingAlgorithm):
             results[self.OUTPUT] = dest_id
             return results
         except Exception as e:
+            traceback_str = traceback.format_exc()
             raise QgsProcessingException(
-                f"Unexpected error occured while running PDOKReverseGeocoder: {str(e)}"
+                f"Unexpected error occured while running PDOKReverseGeocoder: {str(e)} - {traceback_str}"
             )
