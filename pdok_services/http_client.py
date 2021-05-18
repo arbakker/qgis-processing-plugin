@@ -27,9 +27,21 @@ def get_reply(url):
     return reply
 
 
-def get_request_bytes(url):
+def get_request_bytes(url) -> bytes:
     reply = get_reply(url)
     return bytes(reply.content())
+
+
+def get_request_text(url) -> str:
+    reply = get_reply(url)
+    content_type = bytes(reply.rawHeader(b"Content-Type")).decode(
+        "ascii"
+    )  # https://stackoverflow.com/a/4410331
+    encoding = "utf-8"
+    if len(content_type.split(";")) > 1:
+        encoding = content_type.split(";")[1].replace("charset=", "")
+    content_str = str(reply.content(), encoding)
+    return content_str
 
 
 def get_request_json(url):
